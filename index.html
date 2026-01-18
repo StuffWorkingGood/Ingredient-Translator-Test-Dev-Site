@@ -145,8 +145,8 @@
     .scanner-title { font-size: 20px; font-weight: 700; }
     .btn-close { background: rgba(255,255,255,0.1); border: none; color: white; width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer; }
     #scannerContainer { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .scanner-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 280px; height: 150px; border: 3px solid var(--accent-green); border-radius: var(--radius-md); box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
-    .scanner-hint { position: absolute; bottom: 100px; left: 0; right: 0; text-align: center; color: white; font-size: 16px; }
+    .scanner-overlay { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 280px; height: 150px; border: 3px solid var(--accent-green); border-radius: var(--radius-md); box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
+    .scanner-hint { display: none; position: absolute; bottom: 100px; left: 0; right: 0; text-align: center; color: white; font-size: 16px; }
     .scanner-status { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
     .search-ui { width: 100%; max-width: 400px; padding: 24px; text-align: center; }
     .search-ui-icon { font-size: 52px; margin-bottom: 16px; }
@@ -180,11 +180,6 @@
     .product-name { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .product-brand { font-size: 16px; color: var(--text-secondary); margin-bottom: 8px; }
     .product-serving { font-size: 14px; color: var(--text-muted); }
-    .image-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 24px; z-index: 9999; }
-    .image-modal.open { display: flex; }
-    .image-modal-content { max-width: min(95vw, 600px); max-height: 90vh; border-radius: var(--radius-lg); overflow: hidden; background: white; position: relative; }
-    .image-modal img { display: block; max-width: 95vw; max-height: 90vh; width: auto; height: auto; }
-    .image-modal-close { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
     .footer { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 13px; line-height: 1.7; }
     .footer-logo { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; opacity: 0.8; }
     .footer-logo img { width: 28px; height: 28px; border-radius: 6px; }
@@ -240,8 +235,8 @@
             <div class="gauge-needle" id="gaugeNeedle"></div>
           </div>
           <div class="gauge-labels"><span>Clean</span><span>Moderate</span><span>Concerning</span></div>
-          <div class="health-score" id="healthScore">72</div>
-          <div class="health-label" id="healthLabel">Moderately Processed</div>
+          <div class="health-score" id="healthScore">--</div>
+          <div class="health-label" id="healthLabel"></div>
           <div class="health-summary" id="healthSummary"></div>
           <div class="risk-flags" id="riskFlags"></div>
         </div>
@@ -284,7 +279,7 @@
       <button class="btn-close" onclick="stopScanner()">✕</button>
     </div>
     <div id="scannerContainer">
-      <video id="scannerVideo" playsinline></video>
+      <video id="scannerVideo" playsinline style="display:none"></video>
       <div class="scanner-overlay"></div>
       <div class="scanner-hint">Point camera at barcode</div>
       <div class="scanner-status" id="scannerStatus"></div>
@@ -300,108 +295,715 @@
       <button class="btn" style="background:rgba(255,255,255,0.1);margin-top:8px" onclick="scanAgain()">Scan Another</button>
     </div>
   </div>
-  <div id="imageModal" class="image-modal" onclick="closeImageModal(event)">
-    <div class="image-modal-content" onclick="event.stopPropagation()">
-      <button class="image-modal-close" onclick="closeImageModal(event)">✕</button>
-      <img id="imageModalImg" src="" alt="Product image">
-    </div>
-  </div>
-dedHtml += '</div>';
+
+<script>
+// ===== INGREDIENT DATABASE =====
+var db = {
+  "sugar": { c: "sugar", e: "Regular table sugar (sucrose).", source: "Sugarcane or sugar beets", purpose: "Sweetness, texture", concerns: ["High glycemic index", "Empty calories"], diet: ["Not keto"], risk: 4 },
+  "high fructose corn syrup": { c: "sugar", e: "Cheap liquid sugar from corn. Very common in processed foods.", source: "Corn starch + enzymes", purpose: "Cheap sweetener", concerns: ["Linked to obesity", "High fructose load on liver", "Usually GMO"], diet: ["Not keto"], risk: 7 },
+  "corn syrup": { c: "sugar", e: "Liquid glucose from corn starch.", source: "Corn", purpose: "Sweetener, texture", concerns: ["Highly processed", "Spikes blood sugar"], diet: ["Not keto"], risk: 5 },
+  "maltodextrin": { c: "sugar", e: "Processed starch. Spikes blood sugar faster than table sugar.", source: "Corn, rice, or wheat starch", purpose: "Filler, thickener", concerns: ["Glycemic index of 85-105", "May disrupt gut bacteria"], diet: ["Not keto"], risk: 6 },
+  "dextrose": { c: "sugar", e: "Simple sugar (glucose) from corn.", source: "Corn starch", purpose: "Quick energy, sweetness", concerns: ["Spikes blood sugar rapidly"], diet: ["Not keto"], risk: 5 },
+  "aspartame": { c: "artificial sweetener", e: "Zero-calorie artificial sweetener. 200x sweeter than sugar.", source: "Synthetic amino acids", purpose: "Zero-calorie sweetness", concerns: ["Headaches in some people", "Controversial safety studies", "Not for PKU patients"], diet: ["Keto-friendly"], risk: 6 },
+  "sucralose": { c: "artificial sweetener", e: "Zero-calorie sweetener (Splenda). 600x sweeter than sugar.", source: "Chlorinated sugar", purpose: "Heat-stable sweetener", concerns: ["May affect gut bacteria", "Chlorinated compound"], diet: ["Keto-friendly"], risk: 5 },
+  "acesulfame potassium": { c: "artificial sweetener", e: "Artificial sweetener often paired with aspartame.", source: "Synthetic", purpose: "Sweetness, flavor enhancement", concerns: ["Limited long-term studies", "Contains methylene chloride"], diet: ["Keto-friendly"], risk: 5 },
+  "stevia": { c: "natural sweetener", e: "Plant-based zero-calorie sweetener.", source: "Stevia plant leaves", purpose: "Natural zero-cal sweetness", concerns: ["Can have bitter aftertaste"], diet: ["Keto-friendly", "Vegan"], risk: 1 },
+  "monk fruit": { c: "natural sweetener", e: "Natural sweetener from Asian fruit. Zero calories.", source: "Luo han guo fruit", purpose: "Natural sweetener", concerns: ["Often mixed with other sweeteners"], diet: ["Keto-friendly", "Vegan"], risk: 1 },
+  "erythritol": { c: "sugar alcohol", e: "Sugar alcohol with almost zero calories.", source: "Fermented glucose", purpose: "Bulk sweetener", concerns: ["May cause digestive issues in large amounts"], diet: ["Keto-friendly"], risk: 2 },
+  "sodium benzoate": { c: "preservative", e: "Prevents mold and bacteria growth in acidic foods.", source: "Synthetic", purpose: "Preservation", concerns: ["Can form benzene with vitamin C", "Linked to hyperactivity"], diet: ["Vegan"], risk: 6 },
+  "potassium sorbate": { c: "preservative", e: "Prevents mold and yeast growth.", source: "Synthetic", purpose: "Preservation", concerns: ["Generally considered safe", "May cause skin irritation"], diet: ["Vegan"], risk: 2 },
+  "sodium nitrite": { c: "preservative", e: "Cures meat and keeps it pink. Prevents botulism.", source: "Synthetic", purpose: "Meat preservation, color", concerns: ["Forms nitrosamines when heated", "Linked to cancer risk"], diet: ["Not vegan"], risk: 8 },
+  "bha": { c: "preservative", e: "Butylated hydroxyanisole. Prevents fats from going rancid.", source: "Petroleum-derived", purpose: "Antioxidant preservative", concerns: ["Possible carcinogen", "Banned in some countries"], diet: ["Vegan"], risk: 7 },
+  "bht": { c: "preservative", e: "Butylated hydroxytoluene. Similar to BHA.", source: "Petroleum-derived", purpose: "Prevents oxidation", concerns: ["Possible carcinogen", "Endocrine disruptor concerns"], diet: ["Vegan"], risk: 7 },
+  "tbhq": { c: "preservative", e: "Tertiary butylhydroquinone. Preserves fats and oils.", source: "Petroleum-derived", purpose: "Antioxidant", concerns: ["May affect immune system", "Nausea at high doses"], diet: ["Vegan"], risk: 5 },
+  "red 40": { c: "artificial color", e: "Most common red food dye in the US.", source: "Petroleum-derived", purpose: "Red coloring", concerns: ["Linked to hyperactivity in children", "Banned in some countries"], diet: ["Vegan"], risk: 7 },
+  "yellow 5": { c: "artificial color", e: "Tartrazine. Common yellow dye.", source: "Petroleum-derived", purpose: "Yellow coloring", concerns: ["Allergic reactions", "Hyperactivity concerns"], diet: ["Vegan"], risk: 6 },
+  "yellow 6": { c: "artificial color", e: "Sunset Yellow. Orange-yellow dye.", source: "Petroleum-derived", purpose: "Orange coloring", concerns: ["Linked to hyperactivity", "Allergic reactions"], diet: ["Vegan"], risk: 6 },
+  "blue 1": { c: "artificial color", e: "Brilliant Blue. Common blue dye.", source: "Petroleum-derived", purpose: "Blue coloring", concerns: ["May cross blood-brain barrier", "Allergic reactions"], diet: ["Vegan"], risk: 5 },
+  "caramel color": { c: "color", e: "Brown coloring made from heated sugar.", source: "Heated sugar with chemicals", purpose: "Brown color", concerns: ["Class IV contains 4-MEI (possible carcinogen)"], diet: ["Check source"], risk: 4 },
+  "monosodium glutamate": { c: "flavor enhancer", e: "MSG. Enhances savory/umami flavor.", source: "Fermented starch", purpose: "Flavor enhancement", concerns: ["Headaches in sensitive people", "Often in highly processed foods"], diet: ["Vegan"], risk: 4 },
+  "carrageenan": { c: "stabilizer", e: "Thickener from seaweed. Controversial.", source: "Red seaweed", purpose: "Thickening, stabilizing", concerns: ["Inflammation concerns", "Digestive issues", "Banned in EU infant formula"], diet: ["Vegan"], risk: 5 },
+  "xanthan gum": { c: "stabilizer", e: "Thickener made by bacteria fermentation.", source: "Bacterial fermentation", purpose: "Thickening, stabilizing", concerns: ["Generally safe", "May cause bloating"], diet: ["Vegan", "GF"], risk: 1 },
+  "guar gum": { c: "stabilizer", e: "Thickener from guar beans.", source: "Guar beans", purpose: "Thickening", concerns: ["May cause digestive issues"], diet: ["Vegan", "GF"], risk: 2 },
+  "cellulose": { c: "fiber", e: "Plant fiber used as filler and anti-caking agent.", source: "Wood pulp or plants", purpose: "Filler, fiber", concerns: ["Not digestible", "Used to bulk up food"], diet: ["Vegan", "GF"], risk: 2 },
+  "soy lecithin": { c: "emulsifier", e: "Keeps oil and water mixed. Very common.", source: "Soybeans", purpose: "Emulsifier", concerns: ["Usually GMO", "Soy allergen"], diet: ["Vegan"], risk: 2 },
+  "polysorbate 80": { c: "emulsifier", e: "Synthetic emulsifier.", source: "Synthetic", purpose: "Emulsifier, stabilizer", concerns: ["May affect gut bacteria", "Inflammation concerns"], diet: ["Vegan"], risk: 4 },
+  "partially hydrogenated oil": { c: "trans fat", e: "Artificial trans fat. Extremely harmful.", source: "Vegetable oil + hydrogen", purpose: "Shelf stability, texture", concerns: ["Heart disease", "Banned but traces allowed"], diet: ["Vegan"], risk: 10 },
+  "hydrogenated oil": { c: "fat", e: "Fully or partially hardened vegetable oil.", source: "Vegetable oils", purpose: "Shelf stability", concerns: ["May contain trans fats", "Highly processed"], diet: ["Vegan"], risk: 6 },
+  "palm oil": { c: "oil", e: "Oil from palm fruit. Environmental concerns.", source: "Palm fruit", purpose: "Cooking oil, texture", concerns: ["Deforestation", "High saturated fat"], diet: ["Vegan"], risk: 4 },
+  "soybean oil": { c: "oil", e: "Most common vegetable oil in US.", source: "Soybeans", purpose: "Cooking oil", concerns: ["High omega-6", "Usually GMO", "Inflammation"], diet: ["Vegan"], risk: 3 },
+  "canola oil": { c: "oil", e: "Oil from rapeseed. Highly processed.", source: "Rapeseed", purpose: "Cooking oil", concerns: ["Highly processed", "Usually GMO"], diet: ["Vegan"], risk: 3 },
+  "olive oil": { c: "oil", e: "Oil from pressed olives. Heart-healthy.", source: "Olives", purpose: "Cooking, flavor", concerns: ["Often adulterated"], diet: ["Vegan", "Heart-healthy"], risk: 0 },
+  "natural flavors": { c: "flavor", e: "Vague term for flavor compounds from natural sources.", source: "Plant or animal sources", purpose: "Flavoring", concerns: ["Very vague - can be almost anything", "May not be vegan"], diet: ["Check source"], risk: 3 },
+  "artificial flavors": { c: "flavor", e: "Lab-created flavor compounds.", source: "Synthetic", purpose: "Flavoring", concerns: ["Unknown specific chemicals", "Proprietary formulas"], diet: ["Usually vegan"], risk: 3 },
+  "citric acid": { c: "acid", e: "Adds tartness. Usually from mold, not citrus.", source: "Aspergillus mold fermentation", purpose: "Sour flavor, preservative", concerns: ["Generally safe"], diet: ["Vegan", "GF"], risk: 1 },
+  "phosphoric acid": { c: "acid", e: "Adds tartness to cola drinks. Affects calcium absorption.", source: "Phosphate rock", purpose: "Acidifier, flavor", concerns: ["May affect bone density", "Tooth enamel erosion"], diet: ["Vegan"], risk: 4 },
+  "enriched wheat flour": { c: "flour", e: "Refined white flour with vitamins added back.", source: "Wheat", purpose: "Baking, structure", concerns: ["Refined/processed", "Nutrients stripped then added"], diet: ["Not GF"], risk: 2 },
+  "whole wheat flour": { c: "flour", e: "Flour with entire wheat kernel.", source: "Whole wheat", purpose: "Baking, fiber", concerns: ["Contains gluten"], diet: ["Not GF"], risk: 1 },
+  "water": { c: "water", e: "H2O. Essential for life.", source: "Water supply", purpose: "Hydration, processing", concerns: [], diet: ["Vegan", "GF"], risk: 0 },
+  "salt": { c: "salt", e: "Sodium chloride. Essential mineral.", source: "Sea or rock deposits", purpose: "Flavor, preservation", concerns: ["Excess linked to high blood pressure"], diet: ["Vegan", "GF"], risk: 1 },
+  "cream": { c: "dairy", e: "High-fat dairy product.", source: "Milk", purpose: "Richness, texture", concerns: ["High saturated fat", "Lactose"], diet: ["Vegetarian", "Not vegan"], risk: 2 },
+  "milk": { c: "dairy", e: "Cow's milk.", source: "Cows", purpose: "Nutrition, texture", concerns: ["Lactose intolerance", "Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
+  "whey": { c: "dairy", e: "Protein from cheese-making.", source: "Milk", purpose: "Protein, texture", concerns: ["Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
+  "butter": { c: "dairy", e: "Fat from churned cream.", source: "Cream", purpose: "Flavor, texture", concerns: ["High saturated fat"], diet: ["Vegetarian"], risk: 2 },
+  "cheese": { c: "dairy", e: "Fermented milk product.", source: "Milk", purpose: "Flavor, protein", concerns: ["High sodium", "Saturated fat"], diet: ["Vegetarian"], risk: 2 }
+};
+
+// ===== CATEGORY STYLES =====
+var styles = {
+  "sugar": { color: "#ef4444", bg: "rgba(239,68,68,0.15)", icon: "🍬" },
+  "natural sweetener": { color: "#22c55e", bg: "rgba(34,197,94,0.15)", icon: "🍯" },
+  "artificial sweetener": { color: "#f97316", bg: "rgba(249,115,22,0.15)", icon: "⚗️" },
+  "sugar alcohol": { color: "#eab308", bg: "rgba(234,179,8,0.15)", icon: "🧪" },
+  "preservative": { color: "#14b8a6", bg: "rgba(20,184,166,0.15)", icon: "🧪" },
+  "artificial color": { color: "#ec4899", bg: "rgba(236,72,153,0.15)", icon: "🎨" },
+  "color": { color: "#a855f7", bg: "rgba(168,85,247,0.15)", icon: "🎨" },
+  "flavor enhancer": { color: "#f59e0b", bg: "rgba(245,158,11,0.15)", icon: "✨" },
+  "flavor": { color: "#64748b", bg: "rgba(100,116,139,0.15)", icon: "👅" },
+  "stabilizer": { color: "#8b5cf6", bg: "rgba(139,92,246,0.15)", icon: "🔗" },
+  "emulsifier": { color: "#06b6d4", bg: "rgba(6,182,212,0.15)", icon: "🔄" },
+  "trans fat": { color: "#dc2626", bg: "rgba(220,38,38,0.2)", icon: "☠️" },
+  "fat": { color: "#f59e0b", bg: "rgba(245,158,11,0.15)", icon: "🧈" },
+  "oil": { color: "#eab308", bg: "rgba(234,179,8,0.15)", icon: "🫒" },
+  "acid": { color: "#06b6d4", bg: "rgba(6,182,212,0.15)", icon: "🧫" },
+  "flour": { color: "#d4a574", bg: "rgba(212,165,116,0.15)", icon: "🌾" },
+  "fiber": { color: "#22c55e", bg: "rgba(34,197,94,0.15)", icon: "🌿" },
+  "dairy": { color: "#60a5fa", bg: "rgba(96,165,250,0.15)", icon: "🥛" },
+  "water": { color: "#38bdf8", bg: "rgba(56,189,248,0.15)", icon: "💧" },
+  "salt": { color: "#94a3b8", bg: "rgba(148,163,184,0.15)", icon: "🧂" },
+  "unknown": { color: "#64748b", bg: "rgba(100,116,139,0.15)", icon: "❓" }
+};
+
+// ===== EXAMPLES =====
+var examples = {
+  soda: "Carbonated Water, High Fructose Corn Syrup, Caramel Color, Phosphoric Acid, Natural Flavors, Caffeine, Citric Acid, Sodium Benzoate",
+  chips: "Corn, Vegetable Oil (Corn, Canola, and/or Sunflower Oil), Maltodextrin, Salt, Cheddar Cheese (Milk, Cheese Cultures, Salt, Enzymes), Whey, Monosodium Glutamate, Buttermilk, Romano Cheese, Whey Protein Concentrate, Onion Powder, Corn Flour, Natural and Artificial Flavors, Dextrose, Tomato Powder, Lactose, Spices, Artificial Color (Yellow 6, Yellow 5, Red 40), Lactic Acid, Citric Acid, Sugar, Garlic Powder, Skim Milk, Red and Green Bell Pepper Powder, Disodium Inosinate, Disodium Guanylate",
+  icecream: "Cream, Skim Milk, Sugar, Corn Syrup, Whey, Milk, Butter, Mono and Diglycerides, Guar Gum, Carrageenan, Natural Flavor, Carob Bean Gum, Vitamin A Palmitate",
+  bread: "Enriched Wheat Flour, Water, High Fructose Corn Syrup, Yeast, Soybean Oil, Salt, Calcium Propionate, Datem, Monoglycerides, Citric Acid, Soy Lecithin",
+  healthy: "Organic Rolled Oats, Organic Maple Syrup, Organic Sunflower Oil, Organic Pumpkin Seeds, Organic Dried Cranberries, Organic Coconut, Sea Salt, Organic Vanilla Extract"
+};
+
+// ===== ALTERNATIVES =====
+var alternatives = {
+  "high fructose corn syrup": { alt: "Honey, maple syrup, or dates", desc: "Natural sweeteners with some nutrients" },
+  "sugar": { alt: "Coconut sugar, honey, or fruit", desc: "Lower glycemic options or whole food sweetness" },
+  "aspartame": { alt: "Stevia or monk fruit", desc: "Natural zero-calorie alternatives" },
+  "sucralose": { alt: "Stevia or monk fruit", desc: "Plant-based zero-calorie options" },
+  "red 40": { alt: "Beet juice or paprika", desc: "Natural red coloring" },
+  "yellow 5": { alt: "Turmeric or annatto", desc: "Natural yellow coloring" },
+  "yellow 6": { alt: "Turmeric or carrot juice", desc: "Natural orange-yellow coloring" },
+  "sodium nitrite": { alt: "Celery powder", desc: "Natural curing agent" },
+  "msg": { alt: "Nutritional yeast", desc: "Natural umami flavor" },
+  "monosodium glutamate": { alt: "Nutritional yeast", desc: "Natural umami flavor" },
+  "carrageenan": { alt: "Gellan gum or agar", desc: "Less controversial thickeners" },
+  "soybean oil": { alt: "Olive oil or avocado oil", desc: "Healthier fat profiles" },
+  "canola oil": { alt: "Olive oil or coconut oil", desc: "Less processed options" }
+};
+
+// ===== GLOBAL STATE =====
+var currentProduct = null;
+var lastHealthScore = 50;
+var scannedIngredients = "";
+var scannedProductData = null;
+var quaggaRunning = false;
+
+// ===== TAB SWITCHING =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(function(t, i) {
+    t.classList.toggle('active', (tab === 'analyze' && i === 0) || (tab === 'favorites' && i === 1));
+  });
+  document.getElementById('analyzeTab').classList.toggle('active', tab === 'analyze');
+  document.getElementById('favoritesTab').classList.toggle('active', tab === 'favorites');
+  if (tab === 'favorites') renderFavorites();
+}
+
+// ===== FAVORITES =====
+function getFavorites() {
+  try { return JSON.parse(localStorage.getItem('ingredientFavorites') || '[]'); }
+  catch(e) { return []; }
+}
+
+function saveFavorites(favs) {
+  localStorage.setItem('ingredientFavorites', JSON.stringify(favs));
+}
+
+function isFavorited(code) {
+  return getFavorites().some(function(f) { return f.code === code; });
+}
+
+function toggleFavorite(e) {
+  e.stopPropagation();
+  if (!currentProduct || !currentProduct.code) return;
+  var favs = getFavorites();
+  var idx = favs.findIndex(function(f) { return f.code === currentProduct.code; });
+  if (idx >= 0) {
+    favs.splice(idx, 1);
+  } else {
+    favs.unshift({
+      code: currentProduct.code,
+      name: currentProduct.name,
+      brand: currentProduct.brand,
+      image: currentProduct.image,
+      ingredients: currentProduct.ingredients,
+      serving: currentProduct.serving,
+      score: lastHealthScore
+    });
+  }
+  saveFavorites(favs);
+  updateFavoriteButton();
+}
+
+function updateFavoriteButton() {
+  var btn = document.getElementById('favoriteBtn');
+  if (!currentProduct || !currentProduct.code) {
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'block';
+  var fav = isFavorited(currentProduct.code);
+  btn.classList.toggle('favorited', fav);
+  btn.textContent = fav ? '❤️' : '🤍';
+}
+
+function renderFavorites() {
+  var favs = getFavorites();
+  var container = document.getElementById('favoritesList');
+  if (favs.length === 0) {
+    container.innerHTML = '<div class="favorites-empty"><div class="favorites-empty-icon">❤️</div><div class="favorites-empty-text">No favorites yet</div><div style="font-size:14px">Tap the heart when viewing a product to save it here</div></div>';
+    return;
+  }
+  container.innerHTML = favs.map(function(f) {
+    var scoreBg = f.score >= 70 ? 'rgba(34,197,94,0.2)' : f.score >= 40 ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)';
+    var scoreColor = f.score >= 70 ? '#86efac' : f.score >= 40 ? '#fcd34d' : '#fca5a5';
+    return '<div class="favorite-card" onclick="loadFavorite(\'' + f.code + '\')">' +
+      (f.image ? '<img class="favorite-image" src="' + f.image + '">' : '<div class="favorite-image-placeholder">📦</div>') +
+      '<div class="favorite-info"><div class="favorite-name">' + (f.name || 'Unknown') + '</div><div class="favorite-brand">' + (f.brand || '') + '</div></div>' +
+      '<div class="favorite-score" style="background:' + scoreBg + ';color:' + scoreColor + '">' + (f.score || '?') + '</div>' +
+      '<button class="favorite-remove" onclick="removeFavorite(event,\'' + f.code + '\')">✕</button></div>';
+  }).join('');
+}
+
+function removeFavorite(e, code) {
+  e.stopPropagation();
+  saveFavorites(getFavorites().filter(function(f) { return f.code !== code; }));
+  renderFavorites();
+  updateFavoriteButton();
+}
+
+function loadFavorite(code) {
+  var fav = getFavorites().find(function(f) { return f.code === code; });
+  if (!fav) return;
+  currentProduct = fav;
+  document.getElementById('input').value = fav.ingredients || '';
+  showSelectedProduct(fav.name, fav.brand, fav.image, fav.serving);
+  switchTab('analyze');
+  analyze();
+}
+
+// ===== SELECTED PRODUCT =====
+function showSelectedProduct(name, brand, image, serving) {
+  document.getElementById('selectedProduct').classList.add('active');
+  document.getElementById('selectedProductName').textContent = name || 'Unknown Product';
+  document.getElementById('selectedProductBrand').textContent = brand || '';
+  document.getElementById('selectedProductServing').textContent = serving || '';
+  var imgEl = document.getElementById('selectedProductImage');
+  var placeholder = document.getElementById('selectedProductPlaceholder');
+  if (image) {
+    imgEl.src = image;
+    imgEl.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    imgEl.style.display = 'none';
+    placeholder.style.display = 'flex';
+  }
+  updateFavoriteButton();
+}
+
+function clearSelectedProduct() {
+  currentProduct = null;
+  document.getElementById('selectedProduct').classList.remove('active');
+  document.getElementById('input').value = '';
+  document.getElementById('results').style.display = 'none';
+  updateFavoriteButton();
+}
+
+// ===== EXAMPLES =====
+function tryExample(type) {
+  document.getElementById('input').value = examples[type];
+  clearSelectedProduct();
+  analyze();
+}
+
+// ===== EXPAND CARDS =====
+function toggleExpand(el) {
+  el.classList.toggle('expanded');
+}
+
+// ===== HEALTH SCORE =====
+function calculateHealthScore(analyzed) {
+  var score = 100;
+  var flags = [];
+  
+  analyzed.forEach(function(ing, idx) {
+    var risk = ing.risk || 0;
+    var mult = idx < 3 ? 1.5 : idx < 6 ? 1.2 : 1;
+    score -= risk * mult;
+    
+    if (risk >= 7) {
+      flags.push({ type: 'danger', text: ing.name });
+    } else if (risk >= 5) {
+      flags.push({ type: 'warning', text: ing.name });
     }
+  });
+  
+  var cats = {};
+  analyzed.forEach(function(i) { cats[i.category] = (cats[i.category] || 0) + 1; });
+  
+  var sugars = (cats['sugar']||0) + (cats['artificial sweetener']||0) + (cats['sugar alcohol']||0);
+  if (sugars >= 3) {
+    score -= 10;
+    flags.push({ type: 'warning', text: sugars + ' sweeteners' });
+  }
+  
+  if (cats['artificial color']) {
+    score -= cats['artificial color'] * 5;
+    flags.push({ type: 'danger', text: 'Artificial dyes' });
+  }
+  
+  if (cats['trans fat']) {
+    score -= 20;
+    flags.push({ type: 'danger', text: 'Trans fat!' });
+  }
+  
+  if (analyzed.length > 15) {
+    flags.push({ type: 'caution', text: analyzed.length + ' ingredients' });
+  }
+  
+  return { score: Math.max(0, Math.min(100, Math.round(score))), flags: flags.slice(0, 4) };
+}
+
+function updateHealthGauge(score, flags) {
+  lastHealthScore = score;
+  var rotation = -90 + (100 - score) * 1.8;
+  document.getElementById('gaugeNeedle').style.setProperty('--rotation', rotation + 'deg');
+  
+  var scoreEl = document.getElementById('healthScore');
+  scoreEl.textContent = score;
+  scoreEl.className = 'health-score ' + (score >= 70 ? 'good' : score >= 50 ? 'okay' : score >= 30 ? 'poor' : 'bad');
+  
+  document.getElementById('healthLabel').textContent = 
+    score >= 80 ? 'Clean & Minimal' : 
+    score >= 60 ? 'Moderately Processed' : 
+    score >= 40 ? 'Concerning Ingredients' : 'Highly Processed';
+  
+  document.getElementById('healthSummary').textContent = 
+    score >= 80 ? 'This product has a clean ingredient list.' : 
+    score >= 60 ? 'Some processed ingredients present.' : 
+    score >= 40 ? 'Contains ingredients linked to health concerns.' : 
+    'Multiple high-risk ingredients. Consider alternatives.';
+  
+  document.getElementById('riskFlags').innerHTML = flags.map(function(f) {
+    return '<div class="risk-flag ' + f.type + '">⚠️ ' + f.text + '</div>';
+  }).join('');
+}
+
+// ===== MAIN ANALYZE FUNCTION =====
+function analyze() {
+  var text = document.getElementById('input').value;
+  if (!text.trim()) return;
+  
+  var cleaned = text.replace(/ingredients?:?/gi, '')
+    .replace(/contains\s*(less than|2%|1%)?\s*(of)?:?/gi, ', ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\./g, ',')
+    .replace(/;/g, ',')
+    .trim();
+  
+  var ingredients = cleaned.split(',')
+    .map(function(i) { return i.trim(); })
+    .filter(function(i) { return i.length > 1 && i.length < 100; });
+  
+  var analyzed = ingredients.map(function(ing, idx) {
+    var lower = ing.toLowerCase().trim()
+      .replace(/^organic\s+/, '')
+      .replace(/^natural\s+/, '')
+      .replace(/^pure\s+/, '');
+    
+    // Direct match
+    if (db[lower]) {
+      var item = db[lower];
+      return {
+        name: ing,
+        category: item.c,
+        explanation: item.e,
+        source: item.source,
+        purpose: item.purpose,
+        concerns: item.concerns,
+        diet: item.diet,
+        risk: item.risk || 0,
+        position: idx + 1
+      };
+    }
+    
+    // Partial match
+    for (var key in db) {
+      if (lower.indexOf(key) !== -1 || key.indexOf(lower) !== -1) {
+        var val = db[key];
+        return {
+          name: ing,
+          category: val.c,
+          explanation: val.e,
+          source: val.source,
+          purpose: val.purpose,
+          concerns: val.concerns,
+          diet: val.diet,
+          risk: val.risk || 0,
+          position: idx + 1
+        };
+      }
+    }
+    
+    // Fallback categorization
+    if (/sugar|syrup|sweetener|sucrose|fructose|dextrose/i.test(lower)) {
+      return { name: ing, category: 'sugar', explanation: 'A type of sugar or sweetener.', risk: 4, position: idx + 1 };
+    }
+    if (/oil|fat|butter/i.test(lower)) {
+      return { name: ing, category: 'oil', explanation: 'A type of fat or oil.', risk: 2, position: idx + 1 };
+    }
+    if (/flour|starch/i.test(lower)) {
+      return { name: ing, category: 'flour', explanation: 'A flour or starch.', risk: 1, position: idx + 1 };
+    }
+    if (/color|dye|red \d|yellow \d|blue \d/i.test(lower)) {
+      return { name: ing, category: 'artificial color', explanation: 'An artificial coloring agent.', risk: 6, position: idx + 1 };
+    }
+    if (/gum/i.test(lower)) {
+      return { name: ing, category: 'stabilizer', explanation: 'A thickener or stabilizer.', risk: 2, position: idx + 1 };
+    }
+    if (/vitamin|thiamin|riboflavin|niacin|folic/i.test(lower)) {
+      return { name: ing, category: 'vitamin', explanation: 'A vitamin or nutrient.', risk: 0, position: idx + 1 };
+    }
+    
+    return { name: ing, category: 'unknown', explanation: 'Not in our database yet.', risk: 1, position: idx + 1 };
+  });
+  
+  // Calculate health score
+  var healthResult = calculateHealthScore(analyzed);
+  updateHealthGauge(healthResult.score, healthResult.flags);
+  
+  // Show results
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('ingredientCount').textContent = analyzed.length + ' ingredients';
+  
+  // Build ingredient cards
+  document.getElementById('ingredientsList').innerHTML = analyzed.map(function(ing) {
+    var s = styles[ing.category] || styles.unknown;
+    
+    var expandedHtml = '';
+    if (ing.source || ing.purpose || ing.concerns || ing.diet) {
+      expandedHtml = '<div class="expanded-info">';
+      if (ing.source) {
+        expandedHtml += '<div class="info-section"><div class="info-label">🌱 Made From</div><div class="info-content">' + ing.source + '</div></div>';
+      }
+      if (ing.purpose) {
+        expandedHtml += '<div class="info-section"><div class="info-label">🎯 Why It\'s Added</div><div class="info-content">' + ing.purpose + '</div></div>';
+      }
+      if (ing.concerns && ing.concerns.length) {
+        expandedHtml += '<div class="info-section"><div class="info-label">⚠️ Things to Know</div><div class="info-content">';
+        ing.concerns.forEach(function(c) {
+          var cls = /carcinogen|cancer|banned|toxic|harmful/i.test(c) ? 'warning' : 
+                   /safe|generally|natural/i.test(c) ? 'good' : 'neutral';
+          expandedHtml += '<span class="info-tag ' + cls + '">' + c + '</span>';
+        });
+        expandedHtml += '</div></div>';
+      }
+      if (ing.diet && ing.diet.length) {
+        expandedHtml += '<div class="info-section"><div class="info-label">🥗 Diet Info</div><div class="info-content">';
+        ing.diet.forEach(function(d) {
+          var cls = /not|avoid/i.test(d) ? 'warning' : /vegan|gf|keto|healthy/i.test(d) ? 'good' : 'neutral';
+          expandedHtml += '<span class="info-tag ' + cls + '">' + d + '</span>';
+        });
+        expandedHtml += '</div></div>';
+      }
+      expandedHtml += '</div>';
+    }
+    
     var hasDetails = ing.source || ing.purpose || ing.concerns || ing.diet;
     var posLabel = ing.position <= 3 ? ' <span style="font-size:12px;color:var(--text-muted)">(#' + ing.position + ' - high amount)</span>' : '';
-    return '<div class="ingredient-card" style="border-left-color:' + s.color + '"' + (hasDetails ? ' onclick="toggleExpand(this)"' : '') + '><div class="ingredient-header"><div><span class="ingredient-name">' + ing.name + '</span>' + posLabel + '</div><span class="category-badge" style="background:' + s.bg + ';color:' + s.color + '">' + s.icon + ' ' + ing.category + '</span></div><p class="ingredient-explanation">' + ing.explanation + '</p>' + (hasDetails ? '<div class="tap-hint">👆 Tap for more info</div>' : '') + expandedHtml + '</div>';
+    
+    return '<div class="ingredient-card" style="border-left-color:' + s.color + '"' + (hasDetails ? ' onclick="toggleExpand(this)"' : '') + '>' +
+      '<div class="ingredient-header">' +
+      '<div><span class="ingredient-name">' + ing.name + '</span>' + posLabel + '</div>' +
+      '<span class="category-badge" style="background:' + s.bg + ';color:' + s.color + '">' + s.icon + ' ' + ing.category + '</span>' +
+      '</div>' +
+      '<p class="ingredient-explanation">' + ing.explanation + '</p>' +
+      (hasDetails ? '<div class="tap-hint">👆 Tap for more info</div>' : '') +
+      expandedHtml +
+      '</div>';
   }).join('');
+  
+  // Show alternatives
   var relevantAlts = [];
   analyzed.forEach(function(ing) {
     var lower = ing.name.toLowerCase();
-    for (var key in alternatives) { if (lower.indexOf(key) !== -1 || key.indexOf(lower) !== -1) { if (!relevantAlts.some(function(a) { return a.original === key; })) { relevantAlts.push({ original: key, alt: alternatives[key].alt, desc: alternatives[key].desc }); } } }
+    for (var key in alternatives) {
+      if (lower.indexOf(key) !== -1 || key.indexOf(lower) !== -1) {
+        if (!relevantAlts.some(function(a) { return a.original === key; })) {
+          relevantAlts.push({ original: key, alt: alternatives[key].alt, desc: alternatives[key].desc });
+        }
+      }
+    }
   });
+  
+  var altSection = document.getElementById('alternativesSection');
   if (relevantAlts.length > 0) {
-    document.getElementById('alternativesSection').style.display = 'block';
-    document.getElementById('alternativesList').innerHTML = relevantAlts.slice(0, 5).map(function(a) { return '<div class="alternative-item"><div class="alternative-icon">✅</div><div class="alternative-content"><div class="alternative-name">Instead of <strong>' + a.original + '</strong>: ' + a.alt + '</div><div class="alternative-desc">' + a.desc + '</div></div></div>'; }).join('');
-  } else { document.getElementById('alternativesSection').style.display = 'none'; }
+    altSection.style.display = 'block';
+    document.getElementById('alternativesList').innerHTML = relevantAlts.slice(0, 5).map(function(a) {
+      return '<div class="alternative-item">' +
+        '<div class="alternative-icon">✅</div>' +
+        '<div class="alternative-content">' +
+        '<div class="alternative-name">Instead of <strong>' + a.original + '</strong>: ' + a.alt + '</div>' +
+        '<div class="alternative-desc">' + a.desc + '</div>' +
+        '</div></div>';
+    }).join('');
+  } else {
+    altSection.style.display = 'none';
+  }
+  
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
-  if (currentProduct) { currentProduct.score = healthResult.score; }
+  
+  if (currentProduct) {
+    currentProduct.score = healthResult.score;
+  }
 }
-var scannedIngredients = "", scannedProductData = null, quaggaRunning = false;
-function startScanner() { document.getElementById('scannerModal').classList.add('active'); document.getElementById('productInfo').classList.remove('active'); document.getElementById('scannerContainer').style.display = 'block'; showManualEntry(); }
+
+// ===== SCANNER FUNCTIONS =====
+function startScanner() {
+  document.getElementById('scannerModal').classList.add('active');
+  document.getElementById('productInfo').classList.remove('active');
+  document.getElementById('scannerContainer').style.display = 'block';
+  showManualEntry();
+}
+
 function showManualEntry() {
   document.getElementById('scannerVideo').style.display = 'none';
   document.querySelector('.scanner-overlay').style.display = 'none';
   document.querySelector('.scanner-hint').style.display = 'none';
-  document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon">🔍</div><div class="search-ui-title">Search by Product Name</div><input type="text" id="productSearch" class="search-input" placeholder="e.g. Doritos, Diet Coke, Oreos" onkeypress="if(event.key===\'Enter\')searchProduct()"><button class="search-btn" onclick="searchProduct()">🔍 Search</button><div class="search-divider">or enter barcode number</div><div class="barcode-row"><input type="text" id="manualBarcode" class="barcode-input" inputmode="numeric" placeholder="049000006346" onkeypress="if(event.key===\'Enter\')handleBarcode(this.value)"><button class="barcode-btn" onclick="handleBarcode(document.getElementById(\'manualBarcode\').value)">Go</button></div><button class="camera-btn" onclick="tryCamera()">📷 Try Camera Scan</button></div>';
+  document.getElementById('scannerStatus').innerHTML = 
+    '<div class="search-ui">' +
+    '<div class="search-ui-icon">🔍</div>' +
+    '<div class="search-ui-title">Search by Product Name</div>' +
+    '<input type="text" id="productSearch" class="search-input" placeholder="e.g. Doritos, Diet Coke, Oreos" onkeypress="if(event.key===\'Enter\')searchProduct()">' +
+    '<button class="search-btn" onclick="searchProduct()">🔍 Search</button>' +
+    '<div class="search-divider">or enter barcode number</div>' +
+    '<div class="barcode-row">' +
+    '<input type="text" id="manualBarcode" class="barcode-input" inputmode="numeric" placeholder="049000006346" onkeypress="if(event.key===\'Enter\')handleBarcode(this.value)">' +
+    '<button class="barcode-btn" onclick="handleBarcode(document.getElementById(\'manualBarcode\').value)">Go</button>' +
+    '</div>' +
+    '<button class="camera-btn" onclick="tryCamera()">📷 Try Camera Scan</button>' +
+    '</div>';
 }
+
 function searchProduct() {
   var query = document.getElementById('productSearch').value.trim();
   if (!query) return;
-  document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon" style="animation:spin 1s linear infinite">🔍</div><div class="search-ui-title">Searching...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  
+  document.getElementById('scannerStatus').innerHTML = 
+    '<div class="search-ui">' +
+    '<div class="search-ui-icon" style="animation:spin 1s linear infinite">🔍</div>' +
+    '<div class="search-ui-title">Searching...</div>' +
+    '</div>' +
+    '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  
   fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=20&countries_tags_en=united-states&sort_by=unique_scans_n')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.products && data.products.length > 0) { showSearchResults(data.products, query); }
-      else { document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon">😕</div><div class="search-ui-title">No results for "' + query + '"</div><button class="search-btn" style="margin-top:20px" onclick="showManualEntry()">← Try Again</button></div>'; }
-    }).catch(function() { document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon">❌</div><div class="search-ui-title">Search failed</div><button class="search-btn" style="margin-top:20px" onclick="showManualEntry()">← Try Again</button></div>'; });
+      if (data.products && data.products.length > 0) {
+        showSearchResults(data.products, query);
+      } else {
+        document.getElementById('scannerStatus').innerHTML = 
+          '<div class="search-ui">' +
+          '<div class="search-ui-icon">😕</div>' +
+          '<div class="search-ui-title">No results for "' + query + '"</div>' +
+          '<button class="search-btn" style="margin-top:20px" onclick="showManualEntry()">← Try Again</button>' +
+          '</div>';
+      }
+    })
+    .catch(function() {
+      document.getElementById('scannerStatus').innerHTML = 
+        '<div class="search-ui">' +
+        '<div class="search-ui-icon">❌</div>' +
+        '<div class="search-ui-title">Search failed</div>' +
+        '<button class="search-btn" style="margin-top:20px" onclick="showManualEntry()">← Try Again</button>' +
+        '</div>';
+    });
 }
+
 function showSearchResults(products, query) {
-  var html = '<div class="search-results"><div style="text-align:center;margin-bottom:16px;color:var(--text-secondary)">' + products.length + ' results for "' + query + '"</div>';
+  var html = '<div class="search-results">' +
+    '<div style="text-align:center;margin-bottom:16px;color:var(--text-secondary)">' + products.length + ' results for "' + query + '"</div>';
+  
   products.forEach(function(p) {
-    var name = p.product_name || 'Unknown', brand = p.brands || '', image = p.image_front_thumb_url || '', hasIng = p.ingredients_text ? true : false;
-    html += '<div class="search-result-card" onclick="selectProduct(\'' + (p.code || '') + '\')">' + (image ? '<img class="search-result-image" src="' + image + '">' : '<div class="search-result-placeholder">📦</div>') + '<div class="search-result-info"><div class="search-result-name">' + name + '</div><div class="search-result-brand">' + brand + '</div></div><div class="search-result-badge ' + (hasIng ? 'has-ing' : 'no-ing') + '">' + (hasIng ? '✓' : '✗') + '</div></div>';
+    var name = p.product_name || 'Unknown';
+    var brand = p.brands || '';
+    var image = p.image_front_thumb_url || '';
+    var hasIng = p.ingredients_text ? true : false;
+    
+    html += '<div class="search-result-card" onclick="selectProduct(\'' + (p.code || '') + '\')">' +
+      (image ? '<img class="search-result-image" src="' + image + '">' : '<div class="search-result-placeholder">📦</div>') +
+      '<div class="search-result-info">' +
+      '<div class="search-result-name">' + name + '</div>' +
+      '<div class="search-result-brand">' + brand + '</div>' +
+      '</div>' +
+      '<div class="search-result-badge ' + (hasIng ? 'has-ing' : 'no-ing') + '">' + (hasIng ? '✓' : '✗') + '</div>' +
+      '</div>';
   });
+  
   html += '<button class="back-btn" onclick="showManualEntry()">← Back to Search</button></div>';
   document.getElementById('scannerStatus').innerHTML = html;
 }
-function selectProduct(code) { if (code) handleBarcode(code); }
+
+function selectProduct(code) {
+  if (code) handleBarcode(code);
+}
+
 function tryCamera() {
   document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-title">Starting camera...</div></div>';
+  
   var readerDiv = document.getElementById('barcode-reader');
-  if (!readerDiv) { readerDiv = document.createElement('div'); readerDiv.id = 'barcode-reader'; readerDiv.style.cssText = 'width:100%;max-width:500px;margin:0 auto;'; document.getElementById('scannerContainer').appendChild(readerDiv); }
-  readerDiv.innerHTML = ''; readerDiv.style.display = 'block';
-  if (quaggaRunning) { Quagga.stop(); quaggaRunning = false; }
-  Quagga.init({ inputStream: { name: "Live", type: "LiveStream", target: readerDiv, constraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }, decoder: { readers: ["ean_reader", "ean_8_reader", "upc_reader", "upc_e_reader", "code_128_reader"] }, locate: true, frequency: 10 }, function(err) {
-    if (err) { showManualEntry(); return; }
-    quaggaRunning = true; Quagga.start();
-    document.getElementById('scannerStatus').innerHTML = '<div style="position:absolute;bottom:20px;left:0;right:0;text-align:center;color:white;font-size:16px">Point at barcode</div><button onclick="showManualEntry()" style="position:absolute;top:20px;left:20px;padding:10px 16px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px">← Back</button>';
+  if (!readerDiv) {
+    readerDiv = document.createElement('div');
+    readerDiv.id = 'barcode-reader';
+    readerDiv.style.cssText = 'width:100%;max-width:500px;margin:0 auto;';
+    document.getElementById('scannerContainer').appendChild(readerDiv);
+  }
+  readerDiv.innerHTML = '';
+  readerDiv.style.display = 'block';
+  
+  if (quaggaRunning) {
+    Quagga.stop();
+    quaggaRunning = false;
+  }
+  
+  Quagga.init({
+    inputStream: {
+      name: "Live",
+      type: "LiveStream",
+      target: readerDiv,
+      constraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+    },
+    decoder: { readers: ["ean_reader", "ean_8_reader", "upc_reader", "upc_e_reader", "code_128_reader"] },
+    locate: true,
+    frequency: 10
+  }, function(err) {
+    if (err) {
+      showManualEntry();
+      return;
+    }
+    quaggaRunning = true;
+    Quagga.start();
+    document.getElementById('scannerStatus').innerHTML = 
+      '<div style="position:absolute;bottom:20px;left:0;right:0;text-align:center;color:white;font-size:16px">Point at barcode</div>' +
+      '<button onclick="showManualEntry()" style="position:absolute;top:20px;left:20px;padding:10px 16px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px">← Back</button>';
   });
-  Quagga.onDetected(function(result) { if (result && result.codeResult && result.codeResult.code) { Quagga.stop(); quaggaRunning = false; handleBarcode(result.codeResult.code); } });
+  
+  Quagga.onDetected(function(result) {
+    if (result && result.codeResult && result.codeResult.code) {
+      Quagga.stop();
+      quaggaRunning = false;
+      handleBarcode(result.codeResult.code);
+    }
+  });
 }
+
 function handleBarcode(code) {
-  if (!code || code.length < 8) { alert('Enter valid barcode (8+ digits)'); return; }
-  document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon" style="animation:spin 1s linear infinite">📦</div><div class="search-ui-title">Looking up product...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  if (!code || code.length < 8) {
+    alert('Enter valid barcode (8+ digits)');
+    return;
+  }
+  
+  document.getElementById('scannerStatus').innerHTML = 
+    '<div class="search-ui">' +
+    '<div class="search-ui-icon" style="animation:spin 1s linear infinite">📦</div>' +
+    '<div class="search-ui-title">Looking up product...</div>' +
+    '</div>' +
+    '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  
   fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.status === 1 && data.product) {
-        var p = data.product, name = p.product_name || 'Unknown', brand = p.brands || '', image = p.image_front_url || '', ingredients = p.ingredients_text || '', serving = p.serving_size ? 'Serving: ' + p.serving_size : '';
+        var p = data.product;
+        var name = p.product_name || 'Unknown';
+        var brand = p.brands || '';
+        var image = p.image_front_url || '';
+        var ingredients = p.ingredients_text || '';
+        var serving = p.serving_size ? 'Serving: ' + p.serving_size : '';
+        
         scannedProductData = { code: code, name: name, brand: brand, image: image, ingredients: ingredients, serving: serving };
         scannedIngredients = ingredients;
-        document.getElementById('productImage').src = image; document.getElementById('productImage').style.display = image ? 'block' : 'none';
+        
+        document.getElementById('productImage').src = image;
+        document.getElementById('productImage').style.display = image ? 'block' : 'none';
         document.getElementById('productName').textContent = name;
         document.getElementById('productBrand').textContent = brand;
         document.getElementById('productServing').textContent = serving;
+        
         document.getElementById('scannerContainer').style.display = 'none';
         document.getElementById('productInfo').classList.add('active');
-        if (!ingredients) { document.getElementById('productInfo').innerHTML += '<div style="color:#fca5a5;text-align:center;padding:12px">⚠️ No ingredients found</div>'; }
-      } else { document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon">😕</div><div class="search-ui-title">Product not found</div><button class="search-btn" onclick="showManualEntry()">← Try Again</button></div>'; }
-    }).catch(function() { document.getElementById('scannerStatus').innerHTML = '<div class="search-ui"><div class="search-ui-icon">❌</div><div class="search-ui-title">Lookup failed</div><button class="search-btn" onclick="showManualEntry()">← Try Again</button></div>'; });
+        
+        if (!ingredients) {
+          document.getElementById('productInfo').innerHTML += '<div style="color:#fca5a5;text-align:center;padding:12px">⚠️ No ingredients found</div>';
+        }
+      } else {
+        document.getElementById('scannerStatus').innerHTML = 
+          '<div class="search-ui">' +
+          '<div class="search-ui-icon">😕</div>' +
+          '<div class="search-ui-title">Product not found</div>' +
+          '<button class="search-btn" onclick="showManualEntry()">← Try Again</button>' +
+          '</div>';
+      }
+    })
+    .catch(function() {
+      document.getElementById('scannerStatus').innerHTML = 
+        '<div class="search-ui">' +
+        '<div class="search-ui-icon">❌</div>' +
+        '<div class="search-ui-title">Lookup failed</div>' +
+        '<button class="search-btn" onclick="showManualEntry()">← Try Again</button>' +
+        '</div>';
+    });
 }
+
 function useScannedIngredients() {
   if (scannedIngredients) {
     document.getElementById('input').value = scannedIngredients;
     currentProduct = scannedProductData;
     showSelectedProduct(scannedProductData.name, scannedProductData.brand, scannedProductData.image, scannedProductData.serving);
   }
-  stopScanner(); analyze();
+  stopScanner();
+  analyze();
 }
-function scanAgain() { document.getElementById('productInfo').classList.remove('active'); document.getElementById('scannerContainer').style.display = 'block'; showManualEntry(); }
+
+function scanAgain() {
+  document.getElementById('productInfo').classList.remove('active');
+  document.getElementById('scannerContainer').style.display = 'block';
+  showManualEntry();
+}
+
 function stopScanner() {
-  if (quaggaRunning) { try { Quagga.stop(); quaggaRunning = false; } catch(e) {} }
-  var readerDiv = document.getElementById('barcode-reader'); if (readerDiv) readerDiv.style.display = 'none';
+  if (quaggaRunning) {
+    try { Quagga.stop(); quaggaRunning = false; } catch(e) {}
+  }
+  var readerDiv = document.getElementById('barcode-reader');
+  if (readerDiv) readerDiv.style.display = 'none';
   document.getElementById('scannerModal').classList.remove('active');
   document.getElementById('productInfo').classList.remove('active');
 }
-document.addEventListener('DOMContentLoaded', function() { renderFavorites(); });
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+  renderFavorites();
+});
 </script>
 </body>
 </html>
