@@ -1,282 +1,76 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Ingredient Translator</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ingredient Translator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <script>
+// NEW: Image zoom modal helpers (works for product card + search results)
+function openImageModal(src) {
+if (!src) return;
+@@ -33,20 +34,17 @@
+});
 
-  <style>
-    * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: radial-gradient(1200px 600px at top, #1c1f3a, #0e0f1a);
-      color: #f1f1f1;
-      font-size: 22px;
-      line-height: 1.6;
-    }
+// NEW: Click-to-zoom inside the image modal (works on Mac/Chrome)
+(function bindImageModalZoom(){
+// NEW: Click-to-zoom inside the image modal (bind after DOM is ready)
+document.addEventListener('DOMContentLoaded', function(){
+var img = document.getElementById('imageModalImg');
+if (!img) return;
+  if (img.dataset && img.dataset.zoomBound === '1') return;
+  if (img.dataset) img.dataset.zoomBound = '1';
+img.addEventListener('click', function(ev){
+ev.preventDefault();
+ev.stopPropagation();
+img.classList.toggle('zoomed');
+});
+})();
 
-    h1 { font-size: 46px; margin-bottom: 10px; }
-    h2 { font-size: 34px; }
-    h3 { font-size: 28px; }
-
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-
-    button, input, textarea {
-      font-size: 22px;
-      padding: 14px 18px;
-      border-radius: 16px;
-      border: none;
-    }
-
-    button {
-      background: linear-gradient(135deg, #1dd1a1, #10ac84);
-      color: #02110c;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    textarea {
-      width: 100%;
-      margin-top: 12px;
-      min-height: 120px;
-    }
-
-    .card {
-      background: rgba(255,255,255,0.05);
-      border-radius: 24px;
-      padding: 20px;
-      margin-top: 20px;
-    }
-
-    .product-header {
-      text-align: center;
-    }
-
-    #productImage {
-      width: 260px;
-      height: auto;
-      border-radius: 20px;
-      margin: 16px auto;
-      display: none;
-      cursor: zoom-in;
-    }
-
-    .meta {
-      opacity: 0.85;
-      font-weight: 700;
-      margin-top: 6px;
-    }
-
-    .serving {
-      margin-top: 10px;
-      font-weight: 800;
-    }
-
-    /* INGREDIENT COLOR SYSTEM */
-    .ingredient-item {
-      margin-top: 14px;
-      padding: 16px;
-      border-radius: 18px;
-      border-left: 12px solid;
-      background: rgba(255,255,255,0.04);
-      font-size: 21px;
-    }
-
-    .ing-good {
-      border-left-color: #2ecc71;
-      background: rgba(46,204,113,0.12);
-    }
-
-    .ing-neutral {
-      border-left-color: #3498db;
-      background: rgba(52,152,219,0.12);
-    }
-
-    .ing-caution {
-      border-left-color: #f39c12;
-      background: rgba(243,156,18,0.14);
-    }
-
-    .ing-warning {
-      border-left-color: #e74c3c;
-      background: rgba(231,76,60,0.14);
-    }
-
-    .ingredient-sub {
-      opacity: 0.85;
-      font-size: 18px;
-      margin-top: 6px;
-    }
-
-    /* IMAGE MODAL */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-
-    .modal img {
-      max-width: 92%;
-      max-height: 92%;
-      border-radius: 20px;
-      cursor: zoom-in;
-      transition: transform 0.25s ease;
-    }
-
-    .modal img.zoomed {
-      transform: scale(2);
-      cursor: zoom-out;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="container">
-
-    <div class="product-header">
-      <h1>Ingredient Translator</h1>
-      <button onclick="searchProduct()">🔍 Search Product</button>
-    </div>
-
-    <div id="productInfo" class="card" style="display:none;">
-      <div class="product-header">
-        <img id="productImage">
-        <h2 id="productName"></h2>
-        <div class="meta" id="productBrand"></div>
-        <div class="serving" id="servingInfo"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <textarea id="input" placeholder="Paste ingredients here..."></textarea>
-      <button style="margin-top:12px;" onclick="analyze()">🔍 Translate Ingredients</button>
-    </div>
-
-    <div class="card" id="results" style="display:none;">
-      <h3>Ingredient Breakdown</h3>
-      <div id="ingredientsList"></div>
-    </div>
-
-  </div>
-
-  <!-- IMAGE MODAL -->
-  <div class="modal" id="imageModal" onclick="closeModal()">
-    <img id="modalImg">
-  </div>
-
-<script>
-let selectedProductData = null;
-
-function escapeHtml(s){
-  return s.replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
-  );
-}
-
-function searchProduct(){
-  const q = prompt("Enter product name");
-  if(!q) return;
-
-  fetch(
-    "https://world.openfoodfacts.org/cgi/search.pl?search_terms=" +
-    encodeURIComponent(q) +
-    "&search_simple=1&action=process&json=1&page_size=20&countries_tags_en=united-states&sort_by=unique_scans_n"
-  )
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.products && d.products.length){
-      showProduct(d.products[0], d.products[0].code);
-    }
-  });
-}
-
-function showProduct(product, code){
-  document.getElementById("productInfo").style.display="block";
-
-  const name = product.product_name || "Unknown Product";
-  const brand = product.brands || "";
-  const img = product.image_front_small_url || "";
-  const full = product.image_front_url || img;
-
-  selectedProductData = {
-    servingSize: product.serving_size || "",
-    servingQty: product.serving_quantity || null,
-    ingredients: product.ingredients || []
-  };
-
-  document.getElementById("productName").textContent = name;
-  document.getElementById("productBrand").textContent = brand ? "by "+brand : "Barcode "+code;
-
-  if(img){
-    const im = document.getElementById("productImage");
-    im.src = img;
-    im.style.display="block";
-    im.onclick = e => { e.stopPropagation(); openModal(full); };
-  }
-
-  renderServing();
-}
-
-function renderServing(){
-  const el = document.getElementById("servingInfo");
-  if(!selectedProductData) return;
-
-  if(selectedProductData.servingSize){
-    el.textContent = "Serving size: " + selectedProductData.servingSize;
-  } else {
-    el.textContent = "Serving size: not provided";
-  }
-}
-
-function analyze(){
-  const raw = document.getElementById("input").value;
-  if(!raw) return;
-
-  const list = raw.split(",").map(i=>i.trim()).filter(Boolean);
-  const out = document.getElementById("ingredientsList");
-  out.innerHTML = "";
-
-  list.forEach(name=>{
-    let cls = "ing-neutral";
-    const n = name.toLowerCase();
-
-    if(/sugar|corn syrup|artificial|color|red \d|yellow \d/.test(n)) cls="ing-warning";
-    else if(/emulsifier|stabilizer|preservative|flavor/.test(n)) cls="ing-caution";
-    else if(/whole|fruit|vegetable|oat|nut|seed/.test(n)) cls="ing-good";
-
-    const div = document.createElement("div");
-    div.className = "ingredient-item " + cls;
-    div.innerHTML = "<strong>"+escapeHtml(name)+"</strong>";
-    out.appendChild(div);
-  });
-
-  document.getElementById("results").style.display="block";
-}
-
-function openModal(src){
-  const m = document.getElementById("imageModal");
-  const i = document.getElementById("modalImg");
-  i.src = src;
-  i.classList.remove("zoomed");
-  i.onclick = e => { e.stopPropagation(); i.classList.toggle("zoomed"); };
-  m.style.display="flex";
-}
-
-function closeModal(){
-  document.getElementById("imageModal").style.display="none";
-}
 </script>
+});
+  </script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:linear-gradient(165deg,#0f0f1a 0%,#1a1a2e 40%,#16213e 70%,#1a1a2e 100%);font-family:'DM Sans',system-ui,sans-serif;color:#E8E8E8;padding:16px;padding-bottom:40px}
+@@ -96,8 +94,8 @@
+#selectedProduct{display:none;margin-bottom:16px}
+#selectedProduct.active{display:block}
+.selected-product-card{background:linear-gradient(135deg,rgba(16,185,129,0.15) 0%,rgba(16,185,129,0.05) 100%);border:1px solid rgba(16,185,129,0.3);border-radius:20px;padding:16px;display:flex;align-items:center;gap:14px}
+    .selected-product-image{width:160px;height:160px;object-fit:contain;background:white;border-radius:12px;flex-shrink:0}
+    .selected-product-placeholder{width:160px;height:160px;background:rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+    .selected-product-image{width:70px;height:70px;object-fit:contain;background:white;border-radius:12px;flex-shrink:0}
+    .selected-product-placeholder{width:70px;height:70px;background:rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.selected-product-info{flex:1;min-width:0}
+.selected-product-name{font-weight:600;font-size:15px;margin-bottom:2px;color:#86efac}
+.selected-product-brand{font-size:12px;color:rgba(255,255,255,0.5)}
+@@ -126,15 +124,14 @@
+.product-image{width:240px;height:240px;object-fit:contain;border-radius:16px;background:white;display:block;margin:0 auto 14px;float:none}
 
-</body>
-</html>
+/* NEW: Larger images + tap-to-zoom */
+    .product-card .product-image{width:280px;height:280px}
+    .product-card .product-image{width:140px;height:140px}
+.product-image{cursor:zoom-in}
+    .search-thumb{width:200px;height:200px;object-fit:contain;background:#fff;border-radius:14px;flex:0 0 auto;cursor:zoom-in}
+    .search-thumb{width:140px;height:140px;object-fit:contain;background:#fff;border-radius:14px;flex:0 0 auto;cursor:zoom-in}
+.search-thumb.placeholder{background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7)}
+.image-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:24px;z-index:9999}
+.image-modal.open{display:flex}
+    .image-modal-content{max-width:min(92vw,720px);max-height:92vh;border-radius:16px;overflow:hidden;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);box-shadow:0 20px 60px rgba(0,0,0,0.5);position:relative;overflow:auto}
+    .image-modal img{display:block;max-width:92vw;max-height:92vh;width:auto;height:auto;background:#fff;cursor:zoom-in;transition:transform 0.15s ease}
+    .image-modal img.zoomed{transform:scale(2);cursor:zoom-out}
+    .image-modal-content{max-width:min(92vw,720px);max-height:92vh;border-radius:16px;overflow:hidden;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);box-shadow:0 20px 60px rgba(0,0,0,0.5);position:relative}
+    .image-modal img{display:block;max-width:92vw;max-height:92vh;width:auto;height:auto;background:#fff}
+.image-modal-close{position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:999px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}
+
+</style>
+@@ -5156,8 +5153,8 @@ <h1>Ingredient Translator</h1>
+
+html += '<div onclick="selectProduct(\'' + (product.code || '') + '\')" ' +
+'style="background:rgba(255,255,255,0.05);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;border:1px solid rgba(255,255,255,0.1)">' +
+      (image ? '<img src="' + image + '" style="width:200px;height:200px;object-fit:contain;background:white;border-radius:14px;cursor:zoom-in" onclick="event.stopPropagation();openImageModal(\'' + zoomUrl + '\')">' : 
+               '<div style="width:50px;height:50px;background:rgba(255,255,255,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>') +
+      (image ? '<img src="' + image + '" style="width:140px;height:140px;object-fit:contain;background:white;border-radius:14px;cursor:zoom-in" onclick="event.stopPropagation();openImageModal(\'' + zoomUrl + '\')">' : 
+               '<div style="width:130px;height:130px;background:rgba(255,255,255,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>') +
+'<div style="flex:1;min-width:0">' +
+'<div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</div>' +
+'<div style="font-size:12px;color:rgba(255,255,255,0.5)">' + brand + '</div>' +
