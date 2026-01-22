@@ -19,6 +19,7 @@
       --accent-purple: #8b5cf6;
       --accent-red: #ef4444;
       --accent-orange: #f59e0b;
+      --accent-blue: #3b82f6;
       --radius-lg: 20px;
       --radius-md: 14px;
       --radius-sm: 10px;
@@ -180,6 +181,26 @@
     .product-name { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .product-brand { font-size: 16px; color: var(--text-secondary); margin-bottom: 8px; }
     .product-serving { font-size: 14px; color: var(--text-muted); }
+    /* Wikipedia Lookup Button & Modal Styles */
+    .btn-wiki { background: linear-gradient(135deg, var(--accent-blue) 0%, #2563eb 100%); border: none; border-radius: var(--radius-sm); padding: 10px 16px; color: white; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; transition: transform 0.2s, box-shadow 0.2s; }
+    .btn-wiki:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(59,130,246,0.3); }
+    .btn-wiki:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    #wikiModal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1001; align-items: center; justify-content: center; padding: 20px; }
+    #wikiModal.active { display: flex; }
+    .wiki-content { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto; }
+    .wiki-header { padding: 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg-primary); }
+    .wiki-title { font-size: 20px; font-weight: 700; color: #93c5fd; display: flex; align-items: center; gap: 10px; }
+    .wiki-body { padding: 20px; }
+    .wiki-extract { font-size: 16px; line-height: 1.7; color: var(--text-secondary); }
+    .wiki-extract p { margin-bottom: 14px; }
+    .wiki-image { width: 100%; max-width: 300px; border-radius: var(--radius-md); margin: 16px auto; display: block; }
+    .wiki-link { display: inline-flex; align-items: center; gap: 8px; color: #60a5fa; text-decoration: none; font-weight: 600; margin-top: 16px; padding: 12px 20px; background: rgba(59,130,246,0.1); border-radius: var(--radius-sm); }
+    .wiki-link:hover { background: rgba(59,130,246,0.2); }
+    .wiki-loading { text-align: center; padding: 40px; color: var(--text-muted); }
+    .wiki-loading-icon { font-size: 40px; animation: spin 1s linear infinite; margin-bottom: 16px; }
+    .wiki-error { text-align: center; padding: 40px; color: #fca5a5; }
+    .wiki-not-found { text-align: center; padding: 40px; color: var(--text-muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .footer { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 13px; line-height: 1.7; }
     .footer-logo { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; opacity: 0.8; }
     .footer-logo img { width: 28px; height: 28px; border-radius: 6px; }
@@ -191,7 +212,7 @@
       <div class="logo">🔬</div>
       <h1>Ingredient Translator</h1>
       <p class="subtitle">Understand what's really in your food</p>
-      <div class="stats-badge"><span>📚</span><span>560+ ingredients</span></div>
+      <div class="stats-badge"><span>📚</span><span>585+ ingredients</span></div>
     </div>
     <div class="tabs">
       <button class="tab active" onclick="switchTab('analyze')">🔍 Analyze</button>
@@ -295,6 +316,19 @@
       <button class="btn" style="background:rgba(255,255,255,0.1);margin-top:8px" onclick="scanAgain()">Scan Another</button>
     </div>
   </div>
+  
+  <!-- Wikipedia Modal -->
+  <div id="wikiModal">
+    <div class="wiki-content">
+      <div class="wiki-header">
+        <div class="wiki-title">📖 <span id="wikiTitleText">Wikipedia</span></div>
+        <button class="btn-close" onclick="closeWikiModal()">✕</button>
+      </div>
+      <div class="wiki-body" id="wikiBody">
+        <!-- Content loaded dynamically -->
+      </div>
+    </div>
+  </div>
 
 <script>
 // ===== INGREDIENT DATABASE =====
@@ -346,7 +380,33 @@ var db = {
   "milk": { c: "dairy", e: "Cow's milk.", source: "Cows", purpose: "Nutrition, texture", concerns: ["Lactose intolerance", "Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
   "whey": { c: "dairy", e: "Protein from cheese-making.", source: "Milk", purpose: "Protein, texture", concerns: ["Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
   "butter": { c: "dairy", e: "Fat from churned cream.", source: "Cream", purpose: "Flavor, texture", concerns: ["High saturated fat"], diet: ["Vegetarian"], risk: 2 },
-  "cheese": { c: "dairy", e: "Fermented milk product.", source: "Milk", purpose: "Flavor, protein", concerns: ["High sodium", "Saturated fat"], diet: ["Vegetarian"], risk: 2 }
+  "cheese": { c: "dairy", e: "Fermented milk product.", source: "Milk", purpose: "Flavor, protein", concerns: ["High sodium", "Saturated fat"], diet: ["Vegetarian"], risk: 2 },
+  "lactose": { c: "sugar", e: "Natural milk sugar. Many adults can't digest it.", source: "Milk", purpose: "Natural sweetness in dairy", concerns: ["Lactose intolerance common"], diet: ["Not vegan"], risk: 2 },
+  "onion powder": { c: "spice", e: "Dehydrated ground onion.", source: "Onions", purpose: "Onion flavor", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "garlic powder": { c: "spice", e: "Dehydrated ground garlic.", source: "Garlic", purpose: "Garlic flavor", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "tomato powder": { c: "spice", e: "Dehydrated ground tomatoes.", source: "Tomatoes", purpose: "Tomato flavor", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "spices": { c: "spice", e: "Generic term for various ground spices. Could include pepper, paprika, cumin, etc.", source: "Various plants", purpose: "Flavor", concerns: ["Vague labeling"], diet: ["Usually vegan"], risk: 1 },
+  "spice": { c: "spice", e: "Generic term for ground spice.", source: "Various plants", purpose: "Flavor", concerns: ["Vague labeling"], diet: ["Usually vegan"], risk: 1 },
+  "natural and artificial flavor": { c: "flavor", e: "Combination of natural and synthetic flavor compounds.", source: "Mixed sources", purpose: "Flavoring", concerns: ["Very vague", "Unknown chemicals"], diet: ["Check source"], risk: 3 },
+  "natural and artificial flavors": { c: "flavor", e: "Combination of natural and synthetic flavor compounds.", source: "Mixed sources", purpose: "Flavoring", concerns: ["Very vague", "Unknown chemicals"], diet: ["Check source"], risk: 3 },
+  "natural flavor": { c: "flavor", e: "Flavor compounds from natural sources.", source: "Plant or animal", purpose: "Flavoring", concerns: ["Vague"], diet: ["Check source"], risk: 3 },
+  "artificial flavor": { c: "flavor", e: "Lab-created flavor compounds.", source: "Synthetic", purpose: "Flavoring", concerns: ["Unknown chemicals"], diet: ["Usually vegan"], risk: 3 },
+  "calcium chloride": { c: "mineral", e: "Mineral salt used as firming agent and electrolyte.", source: "Limestone or brine", purpose: "Firming, electrolyte", concerns: ["Generally safe"], diet: ["Vegan"], risk: 1 },
+  "sodium bicarbonate": { c: "leavening", e: "Baking soda. Makes things rise and adjusts pH.", source: "Mineral processing", purpose: "Leavening, pH adjustment", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "magnesium chloride": { c: "mineral", e: "Magnesium salt. Used in tofu and as electrolyte.", source: "Seawater, minerals", purpose: "Coagulant, electrolyte", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "potassium chloride": { c: "mineral", e: "Salt substitute. Provides potassium.", source: "Mineral deposits", purpose: "Salt replacement", concerns: ["Bitter taste"], diet: ["Vegan"], risk: 1 },
+  "buttermilk": { c: "dairy", e: "Fermented milk product. Tangy flavor.", source: "Cultured milk", purpose: "Baking, tangy flavor", concerns: ["Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
+  "romano cheese": { c: "dairy", e: "Sharp Italian cheese.", source: "Sheep or cow milk", purpose: "Flavor", concerns: ["High sodium"], diet: ["Vegetarian"], risk: 2 },
+  "skim milk": { c: "dairy", e: "Milk with fat removed.", source: "Cow's milk", purpose: "Lower fat option", concerns: ["Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
+  "disodium inosinate": { c: "flavor enhancer", e: "Flavor enhancer often used with MSG.", source: "Meat or fish (often synthetic)", purpose: "Umami enhancement", concerns: ["Usually paired with MSG"], diet: ["Check source"], risk: 3 },
+  "disodium guanylate": { c: "flavor enhancer", e: "Flavor enhancer, works with MSG.", source: "Dried fish or yeast", purpose: "Flavor enhancement", concerns: ["Usually with MSG"], diet: ["Check source"], risk: 3 },
+  "lactic acid": { c: "acid", e: "Acid from fermentation. Preservative and flavoring.", source: "Fermentation", purpose: "Preservation, tangy flavor", concerns: ["Generally safe"], diet: ["Usually vegan"], risk: 1 },
+  "red bell pepper powder": { c: "spice", e: "Dehydrated ground red peppers.", source: "Red bell peppers", purpose: "Flavor, color", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "green bell pepper powder": { c: "spice", e: "Dehydrated ground green peppers.", source: "Green bell peppers", purpose: "Flavor", concerns: ["Generally safe"], diet: ["Vegan"], risk: 0 },
+  "whey protein concentrate": { c: "dairy", e: "Concentrated whey protein from milk.", source: "Milk", purpose: "Protein", concerns: ["Dairy allergen"], diet: ["Vegetarian"], risk: 1 },
+  "corn flour": { c: "flour", e: "Finely ground corn.", source: "Corn", purpose: "Baking, coating", concerns: ["Usually GMO"], diet: ["GF", "Vegan"], risk: 1 },
+  "cheese cultures": { c: "dairy", e: "Bacteria used to make cheese.", source: "Bacteria", purpose: "Cheese fermentation", concerns: ["Generally safe"], diet: ["Vegetarian"], risk: 0 },
+  "enzymes": { c: "enzyme", e: "Proteins that speed up reactions. May be from animals.", source: "Animal, plant, or microbial", purpose: "Cheese making", concerns: ["May be animal-derived"], diet: ["Check source"], risk: 1 }
 };
 
 // ===== CATEGORY STYLES =====
@@ -371,6 +431,10 @@ var styles = {
   "dairy": { color: "#60a5fa", bg: "rgba(96,165,250,0.15)", icon: "🥛" },
   "water": { color: "#38bdf8", bg: "rgba(56,189,248,0.15)", icon: "💧" },
   "salt": { color: "#94a3b8", bg: "rgba(148,163,184,0.15)", icon: "🧂" },
+  "spice": { color: "#f97316", bg: "rgba(249,115,22,0.15)", icon: "🌶️" },
+  "mineral": { color: "#60a5fa", bg: "rgba(96,165,250,0.15)", icon: "🧪" },
+  "leavening": { color: "#a3a3a3", bg: "rgba(163,163,163,0.15)", icon: "🫧" },
+  "enzyme": { color: "#8b5cf6", bg: "rgba(139,92,246,0.15)", icon: "🔬" },
   "unknown": { color: "#64748b", bg: "rgba(100,116,139,0.15)", icon: "❓" }
 };
 
@@ -539,6 +603,88 @@ function toggleExpand(el) {
   el.classList.toggle('expanded');
 }
 
+// ===== WIKIPEDIA API FUNCTIONS =====
+function lookupWikipedia(term) {
+  var modal = document.getElementById('wikiModal');
+  var body = document.getElementById('wikiBody');
+  var titleText = document.getElementById('wikiTitleText');
+  
+  modal.classList.add('active');
+  titleText.textContent = term;
+  body.innerHTML = '<div class="wiki-loading"><div class="wiki-loading-icon">🔍</div><div>Searching Wikipedia...</div></div>';
+  
+  // Clean up the search term for better results
+  var searchTerm = term.toLowerCase()
+    .replace(/^organic\s+/i, '')
+    .replace(/^natural\s+/i, '')
+    .replace(/\s*\(.*?\)\s*/g, '')
+    .trim();
+  
+  // Try food-related search first
+  var foodSearchTerm = searchTerm + ' food';
+  
+  fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(searchTerm))
+    .then(function(response) {
+      if (!response.ok) {
+        // If exact match fails, try search API
+        return fetch('https://en.wikipedia.org/w/api.php?action=opensearch&search=' + encodeURIComponent(searchTerm) + '&limit=5&namespace=0&format=json&origin=*')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data[1] && data[1].length > 0) {
+              // Use first result
+              return fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(data[1][0]));
+            }
+            throw new Error('No results');
+          });
+      }
+      return response;
+    })
+    .then(function(response) {
+      if (!response.ok) throw new Error('Not found');
+      return response.json();
+    })
+    .then(function(data) {
+      if (data.type === 'disambiguation') {
+        // Handle disambiguation pages
+        body.innerHTML = '<div class="wiki-not-found">' +
+          '<div style="font-size:32px;margin-bottom:16px">📚</div>' +
+          '<div style="font-size:18px;margin-bottom:12px">"' + term + '" has multiple meanings</div>' +
+          '<a class="wiki-link" href="' + data.content_urls.desktop.page + '" target="_blank">View on Wikipedia →</a>' +
+          '</div>';
+        return;
+      }
+      
+      var html = '';
+      if (data.thumbnail && data.thumbnail.source) {
+        html += '<img class="wiki-image" src="' + data.thumbnail.source + '" alt="' + data.title + '">';
+      }
+      html += '<div class="wiki-extract">' + data.extract_html + '</div>';
+      html += '<a class="wiki-link" href="' + data.content_urls.desktop.page + '" target="_blank">📖 Read full article on Wikipedia →</a>';
+      body.innerHTML = html;
+      titleText.textContent = data.title;
+    })
+    .catch(function(error) {
+      body.innerHTML = '<div class="wiki-not-found">' +
+        '<div style="font-size:48px;margin-bottom:16px">🔍</div>' +
+        '<div style="font-size:18px;margin-bottom:8px">No Wikipedia article found for</div>' +
+        '<div style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:20px">"' + term + '"</div>' +
+        '<div style="font-size:14px;color:var(--text-muted)">Try searching with a different term</div>' +
+        '</div>';
+    });
+}
+
+function closeWikiModal() {
+  document.getElementById('wikiModal').classList.remove('active');
+}
+
+// Close modal on background click
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('wikiModal');
+  if (e.target === modal) {
+    closeWikiModal();
+  }
+});
+
 // ===== HEALTH SCORE =====
 function calculateHealthScore(analyzed) {
   var score = 100;
@@ -626,9 +772,14 @@ function analyze() {
   
   var analyzed = ingredients.map(function(ing, idx) {
     var lower = ing.toLowerCase().trim()
-      .replace(/^organic\s+/, '')
-      .replace(/^natural\s+/, '')
-      .replace(/^pure\s+/, '');
+      .replace(/^organic\s+/i, '')
+      .replace(/^natural\s+/i, '')
+      .replace(/^pure\s+/i, '')
+      .replace(/^or\s+less\s+(of\s+)?/i, '')
+      .replace(/^less\s+than\s+\d+%?\s*(of\s+)?/i, '')
+      .replace(/^contains?\s*(less\s+than)?\s*\d*%?\s*(of\s+)?/i, '')
+      .replace(/&/g, 'and')
+      .trim();
     
     // Direct match
     if (db[lower]) {
@@ -642,7 +793,8 @@ function analyze() {
         concerns: item.concerns,
         diet: item.diet,
         risk: item.risk || 0,
-        position: idx + 1
+        position: idx + 1,
+        inDatabase: true
       };
     }
     
@@ -659,32 +811,33 @@ function analyze() {
           concerns: val.concerns,
           diet: val.diet,
           risk: val.risk || 0,
-          position: idx + 1
+          position: idx + 1,
+          inDatabase: true
         };
       }
     }
     
     // Fallback categorization
     if (/sugar|syrup|sweetener|sucrose|fructose|dextrose/i.test(lower)) {
-      return { name: ing, category: 'sugar', explanation: 'A type of sugar or sweetener.', risk: 4, position: idx + 1 };
+      return { name: ing, category: 'sugar', explanation: 'A type of sugar or sweetener.', risk: 4, position: idx + 1, inDatabase: false };
     }
     if (/oil|fat|butter/i.test(lower)) {
-      return { name: ing, category: 'oil', explanation: 'A type of fat or oil.', risk: 2, position: idx + 1 };
+      return { name: ing, category: 'oil', explanation: 'A type of fat or oil.', risk: 2, position: idx + 1, inDatabase: false };
     }
     if (/flour|starch/i.test(lower)) {
-      return { name: ing, category: 'flour', explanation: 'A flour or starch.', risk: 1, position: idx + 1 };
+      return { name: ing, category: 'flour', explanation: 'A flour or starch.', risk: 1, position: idx + 1, inDatabase: false };
     }
     if (/color|dye|red \d|yellow \d|blue \d/i.test(lower)) {
-      return { name: ing, category: 'artificial color', explanation: 'An artificial coloring agent.', risk: 6, position: idx + 1 };
+      return { name: ing, category: 'artificial color', explanation: 'An artificial coloring agent.', risk: 6, position: idx + 1, inDatabase: false };
     }
     if (/gum/i.test(lower)) {
-      return { name: ing, category: 'stabilizer', explanation: 'A thickener or stabilizer.', risk: 2, position: idx + 1 };
+      return { name: ing, category: 'stabilizer', explanation: 'A thickener or stabilizer.', risk: 2, position: idx + 1, inDatabase: false };
     }
     if (/vitamin|thiamin|riboflavin|niacin|folic/i.test(lower)) {
-      return { name: ing, category: 'vitamin', explanation: 'A vitamin or nutrient.', risk: 0, position: idx + 1 };
+      return { name: ing, category: 'vitamin', explanation: 'A vitamin or nutrient.', risk: 0, position: idx + 1, inDatabase: false };
     }
     
-    return { name: ing, category: 'unknown', explanation: 'Not in our database yet.', risk: 1, position: idx + 1 };
+    return { name: ing, category: 'unknown', explanation: 'Not in our database yet.', risk: 1, position: idx + 1, inDatabase: false };
   });
   
   // Calculate health score
@@ -694,7 +847,7 @@ function analyze() {
   // Show results
   document.getElementById('results').style.display = 'block';
   document.getElementById('ingredientCount').textContent = analyzed.length + ' ingredients';
-  
+
   // Build ingredient cards
   document.getElementById('ingredientsList').innerHTML = analyzed.map(function(ing) {
     var s = styles[ing.category] || styles.unknown;
@@ -728,6 +881,10 @@ function analyze() {
       expandedHtml += '</div>';
     }
     
+    // Wikipedia lookup button - show for all ingredients
+    var escapedName = ing.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    var wikiButtonHtml = '<button class="btn-wiki" onclick="event.stopPropagation(); lookupWikipedia(\'' + escapedName + '\')">📖 Look up on Wikipedia</button>';
+    
     var hasDetails = ing.source || ing.purpose || ing.concerns || ing.diet;
     var posLabel = ing.position <= 3 ? ' <span style="font-size:12px;color:var(--text-muted)">(#' + ing.position + ' - high amount)</span>' : '';
     
@@ -737,11 +894,12 @@ function analyze() {
       '<span class="category-badge" style="background:' + s.bg + ';color:' + s.color + '">' + s.icon + ' ' + ing.category + '</span>' +
       '</div>' +
       '<p class="ingredient-explanation">' + ing.explanation + '</p>' +
+      wikiButtonHtml +
       (hasDetails ? '<div class="tap-hint">👆 Tap for more info</div>' : '') +
       expandedHtml +
       '</div>';
   }).join('');
-  
+
   // Show alternatives
   var relevantAlts = [];
   analyzed.forEach(function(ing) {
